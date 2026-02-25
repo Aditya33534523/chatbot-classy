@@ -1,0 +1,19 @@
+# ── Core ──────────────────────────────────────
+django>=5.2,<6.0
+django-cors-headers>=4.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# ── LLM (Ollama — runs locally) ───────────────
+# Install Ollama: https://ollama.com
+# Then: ollama pull qwen2.5:3b
+# No Python ML deps needed — Ollama is a standalone server
+protobuf>=4.25.0
+
+# ── PDF → CSV (Colab) ─────────────────────────
+pdfplumber>=0.10.0   # handled in colab
+pandas>=2.0.0        # handled in colab
+
+# ── Optional dev ─────────────────────────────
+gunicorn>=21.0.0     # production WSGI
+whitenoise>=6.6.0    # static files in prod

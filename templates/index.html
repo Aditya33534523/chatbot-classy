@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LIFEXIA — AI Health Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root{
+    --bg:#0b0f1a;--surface:#111827;--card:#1a2236;--border:#1e293b;
+    --cyan:#00d4ff;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;
+    --purple:#8b5cf6;--text:#e2e8f0;--muted:#64748b;--white:#ffffff;
+    --radius:12px;--font-head:'Rajdhani',sans-serif;--font-body:'Inter',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-body);height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+  /* ── TOP NAV ── */
+  .navbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:58px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+  .logo{display:flex;align-items:center;gap:10px;font-family:var(--font-head);font-size:22px;font-weight:700;letter-spacing:2px;color:var(--cyan);}
+  .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+  .nav-tabs{display:flex;gap:4px;background:#0d1526;border-radius:8px;padding:4px;}
+  .nav-tab{padding:7px 18px;border-radius:6px;border:none;background:transparent;color:var(--muted);font-family:var(--font-body);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;}
+  .nav-tab.active{background:var(--card);color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.15);}
+  .nav-tab:hover:not(.active){color:var(--text);}
+  .status-row{display:flex;align-items:center;gap:10px;font-size:12px;}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  /* ── PANELS ── */
+  .panels{display:flex;flex:1;overflow:hidden;}
+  .panel{display:none;flex:1;overflow:hidden;}
+  .panel.active{display:flex;flex-direction:column;}
+
+  /* ═══ CHAT PANEL ═══ */
+  #chatPanel{flex-direction:row;gap:0;}
+  .chat-sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar-header{padding:16px;border-bottom:1px solid var(--border);}
+  .sidebar-title{font-family:var(--font-head);font-size:14px;font-weight:600;letter-spacing:1px;color:var(--cyan);margin-bottom:10px;}
+  .new-chat-btn{width:100%;padding:9px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);border-radius:8px;color:var(--cyan);font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;justify-content:center;transition:all .2s;}
+  .new-chat-btn:hover{background:rgba(0,212,255,.2);}
+  .user-type-toggle{padding:12px 16px;border-bottom:1px solid var(--border);}
+  .toggle-label{font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+  .toggle-row{display:flex;gap:6px;}
+  .toggle-btn{flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;}
+  .toggle-btn.active{background:rgba(16,185,129,.1);border-color:var(--green);color:var(--green);}
+  .conv-list{flex:1;overflow-y:auto;padding:8px;}
+  .conv-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:all .2s;}
+  .conv-item:hover{background:var(--card);border-color:var(--border);}
+  .conv-item.active-conv{background:var(--card);border-color:rgba(0,212,255,.3);}
+  .conv-title{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .conv-meta{font-size:10px;color:var(--muted);margin-top:2px;}
+
+  .chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .chat-header{padding:14px 20px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .chat-header-title{font-family:var(--font-head);font-size:16px;font-weight:600;letter-spacing:1px;}
+  .chat-actions{display:flex;gap:8px;}
+  .icon-btn{padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s;}
+  .icon-btn:hover{color:var(--text);border-color:rgba(0,212,255,.4);}
+
+  .messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;}
+  .messages::-webkit-scrollbar{width:4px;}
+  .messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+  .msg{display:flex;gap:10px;animation:fadeIn .3s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .msg.user{flex-direction:row-reverse;}
+  .avatar{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;font-weight:700;}
+  .avatar.ai{background:rgba(0,212,255,.15);color:var(--cyan);border:1px solid rgba(0,212,255,.3);}
+  .avatar.user{background:rgba(139,92,246,.2);color:var(--purple);}
+  .bubble{max-width:72%;padding:12px 16px;border-radius:12px;font-size:13.5px;line-height:1.6;}
+  .msg.user .bubble{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.25);border-top-right-radius:4px;}
+  .msg.ai .bubble{background:var(--card);border:1px solid var(--border);border-top-left-radius:4px;}
+  .bubble h2,.bubble h3{font-family:var(--font-head);color:var(--cyan);margin:8px 0 4px;font-size:15px;}
+  .bubble strong{color:var(--yellow);}
+  .bubble ul,.bubble ol{padding-left:18px;margin:6px 0;}
+  .bubble table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;}
+  .bubble th{background:rgba(0,212,255,.1);padding:6px 10px;text-align:left;font-weight:600;color:var(--cyan);}
+  .bubble td{padding:5px 10px;border-bottom:1px solid var(--border);}
+  .bubble code{background:rgba(0,0,0,.4);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px;}
+  .ts{font-size:10px;color:var(--muted);margin-top:4px;text-align:right;}
+  .msg.ai .ts{text-align:left;}
+
+  .typing-indicator{display:none;align-items:center;gap:10px;padding:0 20px;}
+  .typing-indicator.show{display:flex;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:bounce .9s infinite;}
+  .dot:nth-child(2){animation-delay:.2s;}
+  .dot:nth-child(3){animation-delay:.4s;}
+  @keyframes bounce{0%,80%,100%{transform:scale(1);}40%{transform:scale(1.5);}}
+
+  .chat-input-area{padding:14px 20px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;}
+  .input-row{display:flex;gap:10px;align-items:center;}
+  .chat-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 16px;color:var(--text);font-size:14px;font-family:var(--font-body);resize:none;max-height:100px;transition:border-color .2s;}
+  .chat-input:focus{outline:none;border-color:rgba(0,212,255,.5);}
+  .send-btn{padding:11px 20px;background:linear-gradient(135deg,var(--cyan),#0099cc);border:none;border-radius:10px;color:#000;font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,212,255,.4);}
+  .send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .quick-btns{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+  .quick-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;}
+  .quick-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+
+  /* ═══ MAP PANEL ═══ */
+  #mapPanel{flex-direction:row;}
+  .map-sidebar{width:340px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
+  .map-controls{padding:16px;border-bottom:1px solid var(--border);}
+  .map-title{font-family:var(--font-head);font-size:16px;font-weight:700;letter-spacing:1px;color:var(--cyan);margin-bottom:12px;}
+  .filter-group{margin-bottom:10px;}
+  .filter-label{font-size:11px;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
+  .filter-chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+  .chip.active{border-color:var(--cyan);background:rgba(0,212,255,.1);color:var(--cyan);}
+  .chip:hover:not(.active){border-color:var(--text);color:var(--text);}
+  .search-box{width:100%;padding:9px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;margin-bottom:10px;}
+  .search-box:focus{outline:none;border-color:rgba(0,212,255,.5);}
+  .loc-btn{width:100%;padding:9px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);border-radius:8px;color:var(--cyan);font-size:12px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px;justify-content:center;}
+  .loc-btn:hover{background:rgba(0,212,255,.2);}
+
+  .facility-list{flex:1;overflow-y:auto;padding:10px;}
+  .facility-list::-webkit-scrollbar{width:3px;}
+  .facility-list::-webkit-scrollbar-thumb{background:var(--border);}
+  .fac-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;transition:all .2s;}
+  .fac-card:hover{border-color:rgba(0,212,255,.4);transform:translateX(2px);}
+  .fac-card.selected{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,212,255,.15);}
+  .fac-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;}
+  .fac-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;}
+  .tag{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;}
+  .tag.hospital{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);}
+  .tag.pharmacy{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3);}
+  .tag.emergency{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.3);}
+  .tag.nabh{background:rgba(139,92,246,.15);color:#a78bfa;border:1px solid rgba(139,92,246,.3);}
+  .tag.ayushman{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.3);}
+  .fac-meta{display:flex;justify-content:space-between;align-items:center;}
+  .fac-dist{font-size:11px;color:var(--cyan);}
+  .fac-rating{font-size:11px;color:var(--yellow);}
+  .fac-actions{display:flex;gap:5px;margin-top:8px;}
+  .fac-btn{flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;transition:all .2s;text-align:center;}
+  .fac-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .fac-btn.wa{border-color:rgba(37,211,102,.4);color:#25d366;}
+  .fac-btn.wa:hover{background:rgba(37,211,102,.1);}
+
+  .map-container{flex:1;position:relative;}
+  #map{width:100%;height:100%;}
+  .map-overlay{position:absolute;top:12px;right:12px;z-index:1000;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:11px;color:var(--muted);}
+  .map-overlay span{color:var(--cyan);font-weight:600;}
+
+  /* ═══ WHATSAPP PANEL ═══ */
+  #waPanel{flex-direction:row;}
+  .wa-sidebar{width:300px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;}
+  .wa-section{padding:16px;border-bottom:1px solid var(--border);}
+  .wa-section-title{font-family:var(--font-head);font-size:13px;font-weight:600;letter-spacing:1px;color:var(--cyan);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .form-group{margin-bottom:10px;}
+  .form-label{font-size:11px;color:var(--muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.5px;}
+  .form-input{width:100%;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);}
+  .form-input:focus{outline:none;border-color:rgba(0,212,255,.5);}
+  .form-textarea{width:100%;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--font-body);resize:vertical;min-height:80px;}
+  .form-textarea:focus{outline:none;border-color:rgba(0,212,255,.5);}
+  .form-select{width:100%;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;}
+  .form-select:focus{outline:none;border-color:rgba(0,212,255,.5);}
+  .action-btn{width:100%;padding:10px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:4px;}
+  .action-btn.primary{background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;}
+  .action-btn.primary:hover{opacity:.9;transform:translateY(-1px);}
+  .action-btn.secondary{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:var(--cyan);}
+  .action-btn.secondary:hover{background:rgba(0,212,255,.2);}
+  .action-btn.danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red);}
+  .action-btn.danger:hover{background:rgba(239,68,68,.2);}
+  .action-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+  .wa-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .wa-header{padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border);font-family:var(--font-head);font-size:16px;font-weight:600;letter-spacing:1px;display:flex;align-items:center;justify-content:space-between;}
+  .wa-log{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px;}
+  .log-entry{padding:12px 16px;border-radius:10px;font-size:13px;border-left:3px solid;}
+  .log-entry.success{background:rgba(16,185,129,.08);border-color:var(--green);}
+  .log-entry.error{background:rgba(239,68,68,.08);border-color:var(--red);}
+  .log-entry.info{background:rgba(0,212,255,.08);border-color:var(--cyan);}
+  .log-entry.warn{background:rgba(245,158,11,.08);border-color:var(--yellow);}
+  .log-time{font-size:10px;color:var(--muted);margin-bottom:4px;}
+  .log-msg{color:var(--text);}
+  .log-detail{font-size:11px;color:var(--muted);margin-top:4px;}
+
+  .number-list{display:flex;flex-direction:column;gap:5px;margin-top:8px;}
+  .number-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--card);border-radius:6px;border:1px solid var(--border);}
+  .number-item span{font-size:12px;color:var(--text);}
+  .remove-btn{width:18px;height:18px;border-radius:50%;background:rgba(239,68,68,.2);border:none;color:var(--red);cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;}
+
+  /* ── Toasts ── */
+  .toast-container{position:fixed;top:70px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+  .toast{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;animation:slideIn .3s ease;max-width:320px;}
+  .toast.success{background:rgba(16,185,129,.9);color:#fff;}
+  .toast.error{background:rgba(239,68,68,.9);color:#fff;}
+  .toast.info{background:rgba(0,212,255,.9);color:#000;}
+  @keyframes slideIn{from{opacity:0;transform:translateX(40px);}to{opacity:1;transform:none;}}
+
+  /* ── Loading ── */
+  .loader{display:none;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:12px;padding:10px;}
+  .loader.show{display:flex;}
+  .spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
+
+  /* Responsive */
+  @media(max-width:768px){
+    .chat-sidebar{width:0;overflow:hidden;}
+    .map-sidebar{width:100%;position:absolute;z-index:500;top:0;left:0;height:50%;}
+    .map-container{margin-top:50%;}
+    .wa-sidebar{width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- NAV -->
+<nav class="navbar">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    LIFEXIA
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('chat')">
+      💬 Health Chat
+    </button>
+    <button class="nav-tab" onclick="switchTab('map')">
+      🗺️ Health Grid
+    </button>
+    <button class="nav-tab" onclick="switchTab('wa')">
+      📱 WhatsApp
+    </button>
+  </div>
+  <div class="status-row">
+    <div class="status-dot"></div>
+    <span style="font-size:12px;color:var(--muted);">System Online</span>
+  </div>
+</nav>
+
+<!-- PANELS -->
+<div class="panels">
+
+  <!-- ══════ CHAT PANEL ══════ -->
+  <div class="panel active" id="chatPanel">
+    <div class="chat-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">CONVERSATIONS</div>
+        <button class="new-chat-btn" onclick="newChat()">+ New Chat</button>
+      </div>
+      <div class="user-type-toggle">
+        <div class="toggle-label">Mode</div>
+        <div class="toggle-row">
+          <button class="toggle-btn active" id="patientBtn" onclick="setUserType('patient')">👤 Patient</button>
+          <button class="toggle-btn" id="studentBtn" onclick="setUserType('student')">🎓 Student</button>
+        </div>
+      </div>
+      <div class="conv-list" id="convList">
+        <div class="conv-item active-conv">
+          <div class="conv-title">Welcome Chat</div>
+          <div class="conv-meta">Active session</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-main">
+      <div class="chat-header">
+        <div class="chat-header-title">🤖 LIFEXIA AI — Drug Information Assistant</div>
+        <div class="chat-actions">
+          <button class="icon-btn" onclick="clearChat()">🗑️ Clear</button>
+          <button class="icon-btn" onclick="showEmergencyDrugs()">🚨 Emergency</button>
+        </div>
+      </div>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="typing-indicator" id="typing">
+        <div class="avatar ai" style="font-size:12px;">LX</div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="quick-btns">
+          <button class="quick-btn" onclick="quickAsk('Tell me about Paracetamol')">Paracetamol</button>
+          <button class="quick-btn" onclick="quickAsk('Dosage of Amoxicillin for child')">Amoxicillin child dose</button>
+          <button class="quick-btn" onclick="quickAsk('Side effects of Ibuprofen')">Ibuprofen SE</button>
+          <button class="quick-btn" onclick="quickAsk('Emergency drugs list')">🚨 Emergency</button>
+          <button class="quick-btn" onclick="quickAsk('Tell me about Metformin for diabetes')">Metformin</button>
+        </div>
+        <div class="input-row">
+          <textarea class="chat-input" id="chatInput" rows="1" placeholder="Ask about any drug, dosage, side effects…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+          <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ MAP PANEL ══════ -->
+  <div class="panel" id="mapPanel">
+    <div class="map-sidebar">
+      <div class="map-controls">
+        <div class="map-title">🗺️ HEALTH GRID</div>
+
+        <input class="search-box" id="mapSearch" placeholder="Search hospital, speciality…" oninput="filterFacilities()"/>
+
+        <button class="loc-btn" onclick="getUserLocation()">
+          📍 Use My Location
+        </button>
+        <div style="height:8px;"></div>
+
+        <div class="filter-group">
+          <div class="filter-label">Type</div>
+          <div class="filter-chips">
+            <button class="chip active" data-filter="type" data-val="ALL" onclick="setFilter(this,'type')">All</button>
+            <button class="chip" data-filter="type" data-val="HOSPITAL" onclick="setFilter(this,'type')">Hospitals</button>
+            <button class="chip" data-filter="type" data-val="PHARMACY" onclick="setFilter(this,'type')">Pharmacies</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Speciality</div>
+          <div class="filter-chips" id="specialityChips">
+            <button class="chip active" data-filter="spec" data-val="ALL" onclick="setFilter(this,'spec')">All</button>
+            <button class="chip" data-filter="spec" data-val="Orthopaedic" onclick="setFilter(this,'spec')">Ortho</button>
+            <button class="chip" data-filter="spec" data-val="Gynaecology" onclick="setFilter(this,'spec')">Gynae</button>
+            <button class="chip" data-filter="spec" data-val="Pediatrics" onclick="setFilter(this,'spec')">Paeds</button>
+            <button class="chip" data-filter="spec" data-val="Oncology" onclick="setFilter(this,'spec')">Oncology</button>
+            <button class="chip" data-filter="spec" data-val="Ophthalmology" onclick="setFilter(this,'spec')">Eye</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Features</div>
+          <div class="filter-chips">
+            <button class="chip" id="emergencyChip" onclick="toggleFeature('emergency')">🚨 Emergency</button>
+            <button class="chip" id="ayushmanChip" onclick="toggleFeature('ayushman')">🏥 Ayushman</button>
+            <button class="chip" id="maaChip" onclick="toggleFeature('maa')">💙 MAA Card</button>
+            <button class="chip" id="open24Chip" onclick="toggleFeature('open24x7')">24×7</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="loader show" id="mapLoader">
+        <div class="spin"></div> Loading facilities…
+      </div>
+
+      <div class="facility-list" id="facilityList"></div>
+    </div>
+
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="map-overlay">
+        Showing <span id="mapCount">0</span> facilities
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ WHATSAPP PANEL ══════ -->
+  <div class="panel" id="waPanel">
+    <div class="wa-sidebar">
+
+      <div class="wa-section">
+        <div class="wa-section-title">📱 Send Message</div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input class="form-input" id="waPhone" placeholder="+919824XXXXXX" type="tel"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message</label>
+          <textarea class="form-textarea" id="waMessage" placeholder="Type your message…"></textarea>
+        </div>
+        <button class="action-btn primary" onclick="sendWaMessage()">📤 Send WhatsApp</button>
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title">🔔 Medication Reminder</div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-input" id="remPhone" placeholder="+919824XXXXXX"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Medicine</label>
+          <input class="form-input" id="remMed" placeholder="e.g. Metformin 500mg"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dosage</label>
+          <input class="form-input" id="remDose" placeholder="e.g. 1 tablet after meal"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Time</label>
+          <input class="form-input" id="remTime" placeholder="e.g. 8:00 AM"/>
+        </div>
+        <button class="action-btn secondary" onclick="sendReminder()">Send Reminder</button>
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title">🚨 Emergency Alert</div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input class="form-input" id="emPhone" placeholder="+919824XXXXXX"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alert Type</label>
+          <select class="form-select" id="emType">
+            <option>Cardiac Emergency</option>
+            <option>Anaphylaxis</option>
+            <option>Stroke Alert</option>
+            <option>Diabetic Emergency</option>
+            <option>Respiratory Emergency</option>
+            <option>Trauma Alert</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Details</label>
+          <input class="form-input" id="emDetails" placeholder="Brief details…"/>
+        </div>
+        <button class="action-btn danger" onclick="sendEmAlert()">🚨 Send Emergency Alert</button>
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title">📢 Broadcast</div>
+        <div class="form-group">
+          <label class="form-label">Add Number</label>
+          <div style="display:flex;gap:6px;">
+            <input class="form-input" id="bcNum" placeholder="+91XXXXXXXXXX" style="flex:1;"/>
+            <button class="action-btn secondary" style="width:auto;padding:9px 12px;margin-top:0;" onclick="addBcNum()">+</button>
+          </div>
+        </div>
+        <div class="number-list" id="bcList"></div>
+        <div class="form-group" style="margin-top:10px;">
+          <label class="form-label">Message</label>
+          <textarea class="form-textarea" id="bcMsg" placeholder="Broadcast message…"></textarea>
+        </div>
+        <button class="action-btn primary" onclick="sendBroadcast()">📡 Broadcast</button>
+      </div>
+    </div>
+
+    <div class="wa-main">
+      <div class="wa-header">
+        <span>Activity Log</span>
+        <button class="icon-btn" onclick="clearLog()">🗑️ Clear</button>
+      </div>
+      <div class="wa-log" id="waLog">
+        <div class="log-entry info">
+          <div class="log-time">Ready</div>
+          <div class="log-msg">WhatsApp service initialized. Configure your token in .env to send messages.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ════════════════════════════════════════════
+//  LIFEXIA — Django Frontend JS
+// ════════════════════════════════════════════
+
+// ── State ──
+const state = {
+  sessionId: null,
+  userType: 'patient',
+  map: null,
+  markers: [],
+  facilities: [],
+  filters: { type: 'ALL', spec: 'ALL', emergency: false, ayushman: false, maa: false, open24x7: false },
+  userLat: 23.0258,
+  userLng: 72.5873,
+  bcNumbers: [],
+  chatLoading: false,
+};
+
+// ── Tab switch ──
+function switchTab(tab){
+  document.querySelectorAll('.nav-tab').forEach((t,i)=>t.classList.toggle('active',['chat','map','wa'][i]===tab));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById({chat:'chatPanel',map:'mapPanel',wa:'waPanel'}[tab]).classList.add('active');
+  if(tab==='map'&&!state.map) initMap();
+}
+
+// ── Toast ──
+function toast(msg,type='info',dur=3500){
+  const c=document.getElementById('toastContainer');
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;t.textContent=msg;
+  c.appendChild(t);
+  setTimeout(()=>t.remove(),dur);
+}
+
+// ════════════════════════════════════════════
+//  CHAT
+// ════════════════════════════════════════════
+
+async function initChat(){
+  try{
+    const r=await fetch('/api/chat/init',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',credentials:'include'});
+    const d=await r.json();
+    state.sessionId=d.session_id||'default';
+    if(d.welcome_message) addMessage('ai',d.welcome_message);
+  }catch(e){
+    addMessage('ai','👋 Welcome to **LIFEXIA**! Ask me about any drug, dosage, or side effects.');
+    state.sessionId='default';
+  }
+}
+
+function addMessage(role,text){
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');
+  div.className=`msg ${role==='user'?'user':'ai'}`;
+  const ts=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  div.innerHTML=`
+    <div class="avatar ${role==='user'?'user':'ai'}">${role==='user'?'👤':'LX'}</div>
+    <div>
+      <div class="bubble">${marked(text)}</div>
+      <div class="ts">${ts}</div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+// Simple markdown → HTML (no npm dep)
+function marked(txt){
+  return txt
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/\|(.+)\|/g,(m)=>{
+      const cells=m.split('|').filter(s=>s.trim());
+      return '<tr>'+cells.map(c=>`<td>${c.trim()}</td>`).join('')+'</tr>';
+    })
+    .replace(/(<tr>.*<\/tr>)/gs,'<table>$1</table>')
+    .replace(/\n\n/g,'<br/><br/>')
+    .replace(/\n/g,'<br/>');
+}
+
+async function sendMessage(){
+  if(state.chatLoading) return;
+  const inp=document.getElementById('chatInput');
+  const text=inp.value.trim();
+  if(!text) return;
+  inp.value='';
+  addMessage('user',text);
+  state.chatLoading=true;
+  document.getElementById('sendBtn').disabled=true;
+  document.getElementById('typing').classList.add('show');
+  document.getElementById('messages').scrollTop=9999;
+  try{
+    const r=await fetch('/api/chat/message',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:text,session_id:state.sessionId,user_type:state.userType})
+    });
+    const d=await r.json();
+    document.getElementById('typing').classList.remove('show');
+    addMessage('ai',d.response||d.error||'No response received.');
+  }catch(e){
+    document.getElementById('typing').classList.remove('show');
+    addMessage('ai','⚠️ Connection error. Please try again.');
+  }finally{
+    state.chatLoading=false;
+    document.getElementById('sendBtn').disabled=false;
+  }
+}
+
+function quickAsk(q){document.getElementById('chatInput').value=q;sendMessage();}
+
+function setUserType(t){
+  state.userType=t;
+  document.getElementById('patientBtn').classList.toggle('active',t==='patient');
+  document.getElementById('studentBtn').classList.toggle('active',t==='student');
+  toast(`Mode: ${t==='patient'?'Patient (Simple)':'Student (Detailed)'}`, 'info');
+}
+
+async function newChat(){
+  document.getElementById('messages').innerHTML='';
+  state.sessionId = 'chat_'+Date.now();
+  addMessage('ai','New session started. What would you like to know?');
+  const item=document.createElement('div');
+  item.className='conv-item';
+  item.innerHTML='<div class="conv-title">New Chat</div><div class="conv-meta">Just now</div>';
+  document.getElementById('convList').prepend(item);
+}
+
+async function clearChat(){
+  document.getElementById('messages').innerHTML='';
+  try{await fetch('/api/chat/clear-history',{method:'POST',credentials:'include'});}catch(e){}
+  addMessage('ai','Chat cleared. How can I help?');
+}
+
+async function showEmergencyDrugs(){
+  document.getElementById('chatInput').value='';
+  addMessage('user','Show emergency drugs list');
+  document.getElementById('typing').classList.add('show');
+  try{
+    const r=await fetch('/api/chat/emergency-drugs',{credentials:'include'});
+    const d=await r.json();
+    document.getElementById('typing').classList.remove('show');
+    if(d.success&&d.drugs){
+      let txt='## 🚨 Emergency Drug Reference\n\n';
+      d.drugs.forEach(dr=>{txt+=`### 💊 ${dr.name}\n- **Category:** ${dr.category}\n- **Use:** ${dr.use}\n\n`;});
+      txt+='\n📞 Emergency: **108**';
+      addMessage('ai',txt);
+    }
+  }catch(e){document.getElementById('typing').classList.remove('show');}
+}
+
+// ════════════════════════════════════════════
+//  MAP / HEALTH GRID
+// ════════════════════════════════════════════
+
+function initMap(){
+  state.map=L.map('map',{zoomControl:true}).setView([state.userLat,state.userLng],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap',maxZoom:19
+  }).addTo(state.map);
+  // Dark filter via CSS
+  state.map.getContainer().style.filter='invert(95%) hue-rotate(180deg) brightness(0.85)';
+  loadFacilities();
+}
+
+async function loadFacilities(){
+  try{
+    const url=`/api/map/locations?lat=${state.userLat}&lng=${state.userLng}`;
+    const r=await fetch(url);const d=await r.json();
+    state.facilities=d.facilities||[];
+    document.getElementById('mapLoader').classList.remove('show');
+    renderFacilities(state.facilities);
+    addMapMarkers(state.facilities);
+  }catch(e){
+    document.getElementById('mapLoader').classList.remove('show');
+    toast('Error loading facilities','error');
+  }
+}
+
+function getFilteredFacilities(){
+  const search=document.getElementById('mapSearch').value.toLowerCase();
+  return state.facilities.filter(f=>{
+    if(state.filters.type!=='ALL'&&f.type!==state.filters.type) return false;
+    if(state.filters.spec!=='ALL'&&!f.speciality?.toLowerCase().includes(state.filters.spec.toLowerCase())) return false;
+    if(state.filters.emergency&&!f.emergency) return false;
+    if(state.filters.ayushman&&!f.ayushmanCard) return false;
+    if(state.filters.maa&&!f.maaCard) return false;
+    if(state.filters.open24x7&&!f.open24x7) return false;
+    if(search&&!`${f.name} ${f.speciality} ${f.address} ${f.category}`.toLowerCase().includes(search)) return false;
+    return true;
+  });
+}
+
+function renderFacilities(facs){
+  const list=document.getElementById('facilityList');
+  list.innerHTML='';
+  document.getElementById('mapCount').textContent=facs.length;
+  facs.forEach(f=>{
+    const c=document.createElement('div');
+    c.className='fac-card';
+    c.onclick=()=>focusFacility(f);
+    const isHosp=f.type==='HOSPITAL';
+    const tags=[
+      `<span class="tag ${isHosp?'hospital':'pharmacy'}">${f.type}</span>`,
+      f.emergency?'<span class="tag emergency">🚨 Emergency</span>':'',
+      f.certifications?.includes('NABH')?'<span class="tag nabh">NABH</span>':'',
+      f.ayushmanCard?'<span class="tag ayushman">Ayushman</span>':'',
+      f.maaCard?'<span class="tag ayushman" style="color:#ec4899;border-color:#ec4899;">MAA</span>':'',
+    ].filter(Boolean).join('');
+    const dist=f.distance!=null?`📍 ${f.distance} km • ⏱️ ${f.estimatedTime||'?'} min`:'';
+    c.innerHTML=`
+      <div class="fac-name">${f.name}</div>
+      <div class="fac-tags">${tags}</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${f.address?.substring(0,60)||''}</div>
+      <div class="fac-meta">
+        <span class="fac-dist">${dist}</span>
+        <span class="fac-rating">★ ${f.ratings||'N/A'}</span>
+      </div>
+      <div class="fac-actions">
+        <button class="fac-btn" onclick="openMaps('${f.googleMapsLink||`https://www.google.com/maps/search/?q=${encodeURIComponent(f.name)}`}');event.stopPropagation()">🗺️ Directions</button>
+        <button class="fac-btn" onclick="callFacility('${f.contact||''}');event.stopPropagation()">📞 Call</button>
+        <button class="fac-btn wa" onclick="sendDirectionsWa('${f.id}');event.stopPropagation()">📲 WhatsApp</button>
+      </div>`;
+    list.appendChild(c);
+  });
+}
+
+function addMapMarkers(facs){
+  state.markers.forEach(m=>m.remove());state.markers=[];
+  facs.forEach(f=>{
+    const isHosp=f.type==='HOSPITAL';
+    const color=f.emergency?'#ef4444':isHosp?'#00d4ff':'#10b981';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="width:28px;height:28px;border-radius:50%;background:${color};border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.5);">${isHosp?'🏥':'💊'}</div>`,
+      iconSize:[28,28],iconAnchor:[14,14]
+    });
+    const m=L.marker([f.lat,f.lng],{icon}).addTo(state.map);
+    m.bindPopup(`<div style="font-family:sans-serif;min-width:200px;">
+      <b style="font-size:13px;">${f.name}</b><br>
+      <span style="font-size:11px;color:#666;">${f.speciality||f.type}</span><br>
+      ${f.distance!=null?`<span style="font-size:11px;">📍 ${f.distance} km</span><br>`:''}
+      <a href="${f.googleMapsLink||'#'}" target="_blank" style="font-size:11px;color:#0066cc;">View in Maps ↗</a>
+    </div>`);
+    state.markers.push(m);
+  });
+}
+
+function focusFacility(f){
+  if(!state.map) return;
+  state.map.flyTo([f.lat,f.lng],15,{duration:1});
+  state.markers.find(m=>Math.abs(m.getLatLng().lat-f.lat)<0.0001)?.openPopup();
+  document.querySelectorAll('.fac-card').forEach(c=>c.classList.remove('selected'));
+  event.currentTarget?.classList.add('selected');
+}
+
+function filterFacilities(){
+  const filtered=getFilteredFacilities();
+  renderFacilities(filtered);
+  addMapMarkers(filtered);
+}
+
+function setFilter(el,filterType){
+  const val=el.dataset.val;
+  const chips=el.parentElement.querySelectorAll('.chip');
+  chips.forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  state.filters[filterType]=val;
+  filterFacilities();
+}
+
+function toggleFeature(feat){
+  state.filters[feat]=!state.filters[feat];
+  document.getElementById({emergency:'emergencyChip',ayushman:'ayushmanChip',maa:'maaChip',open24x7:'open24Chip'}[feat])
+    .classList.toggle('active',state.filters[feat]);
+  filterFacilities();
+}
+
+function getUserLocation(){
+  if(!navigator.geolocation){toast('Geolocation not supported','error');return;}
+  toast('Getting your location…','info');
+  navigator.geolocation.getCurrentPosition(pos=>{
+    state.userLat=pos.coords.latitude;
+    state.userLng=pos.coords.longitude;
+    if(state.map) state.map.setView([state.userLat,state.userLng],13);
+    L.marker([state.userLat,state.userLng],{
+      icon:L.divIcon({
+        className:'',
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:#00d4ff;border:2px solid #fff;box-shadow:0 0 8px #00d4ff;"></div>',
+        iconSize:[14,14],iconAnchor:[7,7]
+      })
+    }).addTo(state.map).bindPopup('📍 Your Location');
+    loadFacilities();
+    toast('Location found!','success');
+  },()=>toast('Location access denied','error'));
+}
+
+function openMaps(url){window.open(url,'_blank');}
+function callFacility(contact){if(contact) window.open(`tel:${contact}`);}
+
+async function sendDirectionsWa(facilityId){
+  const phone=prompt('WhatsApp Number (with country code):');
+  if(!phone) return;
+  try{
+    const r=await fetch('/api/map/send-directions',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to_number:phone,facility_id:facilityId})
+    });
+    const d=await r.json();
+    toast(d.success?'Directions sent on WhatsApp!':'Failed: '+d.error, d.success?'success':'error');
+  }catch(e){toast('Error sending','error');}
+}
+
+// ════════════════════════════════════════════
+//  WHATSAPP
+// ════════════════════════════════════════════
+
+function logWa(msg,type='info',detail=''){
+  const log=document.getElementById('waLog');
+  const e=document.createElement('div');
+  e.className=`log-entry ${type}`;
+  e.innerHTML=`<div class="log-time">${new Date().toLocaleTimeString()}</div>
+    <div class="log-msg">${msg}</div>
+    ${detail?`<div class="log-detail">${detail}</div>`:''}`;
+  log.prepend(e);
+}
+
+async function sendWaMessage(){
+  const to=document.getElementById('waPhone').value.trim();
+  const body=document.getElementById('waMessage').value.trim();
+  if(!to||!body){toast('Phone and message required','error');return;}
+  logWa(`Sending to ${to}…`,'info');
+  try{
+    const r=await fetch('/api/whatsapp/send-message',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to_number:to,message:body})
+    });
+    const d=await r.json();
+    if(d.success){
+      logWa(`✅ Message sent to ${to}`, 'success', `Message ID: ${d.message_id}`);
+      toast('Message sent!','success');
+      document.getElementById('waMessage').value='';
+    }else{
+      logWa(`❌ Failed: ${d.error||d.error_message}`, 'error', d.error_code?`Code: ${d.error_code}`:'');
+      toast('Send failed: '+d.error,'error');
+    }
+  }catch(e){logWa('❌ Network error','error',e.message);toast('Network error','error');}
+}
+
+async function sendReminder(){
+  const to=document.getElementById('remPhone').value.trim();
+  const med=document.getElementById('remMed').value.trim();
+  const dose=document.getElementById('remDose').value.trim();
+  const time=document.getElementById('remTime').value.trim();
+  if(!to||!med){toast('Phone and medicine required','error');return;}
+  try{
+    const r=await fetch('/api/whatsapp/medication-reminder',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to_number:to,medication_name:med,dosage:dose,time})
+    });
+    const d=await r.json();
+    logWa(d.success?`✅ Reminder sent to ${to}`:`❌ ${d.error}`, d.success?'success':'error');
+    toast(d.success?'Reminder sent!':'Failed: '+d.error, d.success?'success':'error');
+  }catch(e){logWa('❌ Error','error');toast('Error','error');}
+}
+
+async function sendEmAlert(){
+  const to=document.getElementById('emPhone').value.trim();
+  const type=document.getElementById('emType').value;
+  const details=document.getElementById('emDetails').value.trim();
+  if(!to){toast('Phone required','error');return;}
+  logWa(`🚨 Sending emergency alert: ${type}…`,'warn');
+  try{
+    const r=await fetch('/api/whatsapp/emergency-alert',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({to_number:to,alert_type:type,details})
+    });
+    const d=await r.json();
+    logWa(d.success?`✅ Emergency alert sent to ${to}`:`❌ ${d.error}`, d.success?'success':'error');
+    toast(d.success?'Alert sent!':'Failed: '+d.error, d.success?'success':'error');
+  }catch(e){logWa('❌ Error','error');toast('Error','error');}
+}
+
+function addBcNum(){
+  const n=document.getElementById('bcNum').value.trim();
+  if(!n) return;
+  if(state.bcNumbers.includes(n)){toast('Already added','error');return;}
+  state.bcNumbers.push(n);
+  document.getElementById('bcNum').value='';
+  renderBcList();
+}
+
+function renderBcList(){
+  const list=document.getElementById('bcList');
+  list.innerHTML=state.bcNumbers.map((n,i)=>`
+    <div class="number-item">
+      <span>${n}</span>
+      <button class="remove-btn" onclick="state.bcNumbers.splice(${i},1);renderBcList()">×</button>
+    </div>`).join('');
+}
+
+async function sendBroadcast(){
+  const msg=document.getElementById('bcMsg').value.trim();
+  if(!msg||!state.bcNumbers.length){toast('Add numbers and message','error');return;}
+  logWa(`📡 Broadcasting to ${state.bcNumbers.length} numbers…`,'info');
+  try{
+    const r=await fetch('/api/whatsapp/broadcast',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({numbers:state.bcNumbers,message:msg})
+    });
+    const d=await r.json();
+    const res=d.broadcast_result||{};
+    logWa(`📡 Broadcast complete: ${res.sent||0}/${res.total||0} sent`,
+      (res.failed||0)===0?'success':'warn',
+      res.errors?.length?`Failures: ${res.errors.map(e=>e.number).join(', ')}`:''
+    );
+    toast(`Sent ${res.sent||0}/${res.total||0}`, (res.failed||0)===0?'success':'warn');
+  }catch(e){logWa('❌ Broadcast error','error');toast('Error','error');}
+}
+
+function clearLog(){document.getElementById('waLog').innerHTML='';}
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+
+window.addEventListener('DOMContentLoaded',()=>{
+  initChat();
+});
+</script>
+</body>
+</html>
